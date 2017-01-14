@@ -11,6 +11,7 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Region;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.support.annotation.ColorInt;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
@@ -204,10 +205,11 @@ public class RatingSeekBar extends SeekBar {
         // paint active track
 
         float stepWidth = (float) (width - 2 * padding) / count;
+        float progressWidth = 0;
         if (active) {
             float startOffset = padding + stepWidth - radius;
 
-            float progressWidth = startOffset + progressFraction * (count - 1) * stepWidth;
+            progressWidth = startOffset + progressFraction * (count - 1) * stepWidth;
             if (progressFraction > (float) (count - 2) / (count - 1)) {
                 float fraction = (count - 1) * (progressFraction - (float) (count - 2) / (count - 1));
                 progressWidth += fraction * padding;
@@ -223,16 +225,25 @@ public class RatingSeekBar extends SeekBar {
         }
 
         // paint masked labels
-
+        // use simpler clipping operations on older API levels
+        // https://developer.android.com/guide/topics/graphics/hardware-accel.html#unsupported
         textPaint.setColor(inactiveTextColor);
         canvas.save();
-        canvas.clipPath(path, Region.Op.DIFFERENCE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            canvas.clipPath(path, Region.Op.DIFFERENCE);
+        } else {
+            canvas.clipRect(progressWidth + radius, 0, width, height, Region.Op.INTERSECT);
+        }
         drawLabels(canvas, count, stepWidth);
         canvas.restore();
 
         textPaint.setColor(activeTextColor);
         canvas.save();
-        canvas.clipPath(path, Region.Op.INTERSECT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            canvas.clipPath(path, Region.Op.INTERSECT);
+        } else {
+            canvas.clipRect(0, 0, progressWidth + radius, height, Region.Op.INTERSECT);
+        }
         drawLabels(canvas, count, stepWidth);
         canvas.restore();
     }
