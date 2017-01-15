@@ -162,8 +162,7 @@ public class RatingSeekBar extends SeekBar {
                 progressAnimator.setFloatValues(progressFraction, targetProgressFraction);
                 progressAnimator.start();
             } else {
-                progressFraction = targetProgressFraction;
-                invalidate();
+                setProgressFraction(targetProgressFraction);
             }
         }
     }
