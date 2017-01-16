@@ -17,7 +17,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
-        android:max="10" />
+        app:rsb_max="10" />
 
     <TextView
         android:id="@+id/rating_label_one"
@@ -32,21 +32,21 @@
         android:layout_width="match_parent"
         android:layout_height="72dp"
         android:layout_marginBottom="32dp"
-        android:max="5"
         app:rsb_active_color="#8F8"
         app:rsb_active_text_color="#E44"
         app:rsb_inactive_color="@color/colorPrimaryDark"
         app:rsb_inactive_text_color="#CCC"
+        app:rsb_max="5"
         app:rsb_text_size="18sp" />
 
     <com.trafi.ratingseekbar.RatingSeekBar
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:max="7"
         app:rsb_active_color="#EE4"
         app:rsb_active_text_color="@android:color/black"
         app:rsb_inactive_color="@android:color/black"
         app:rsb_inactive_text_color="#CC4"
+        app:rsb_max="7"
         app:rsb_text_size="18sp" />
 
 </LinearLayout>

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <declare-styleable name="rsb_RatingSeekBar">
+        <attr name="rsb_max" format="integer" />
         <attr name="rsb_inactive_color" format="color" />
         <attr name="rsb_active_color" format="color" />
         <attr name="rsb_inactive_text_color" format="color" />

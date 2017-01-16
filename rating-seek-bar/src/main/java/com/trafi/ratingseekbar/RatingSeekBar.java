@@ -14,15 +14,15 @@ import android.os.Build;
 import android.support.annotation.ColorInt;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.animation.DecelerateInterpolator;
-import android.widget.SeekBar;
 
 import static android.view.MotionEvent.ACTION_CANCEL;
 import static android.view.MotionEvent.ACTION_DOWN;
 import static android.view.MotionEvent.ACTION_MOVE;
 import static android.view.MotionEvent.ACTION_UP;
 
-public class RatingSeekBar extends SeekBar {
+public class RatingSeekBar extends View {
 
     private final Paint paint;
     private final Paint textPaint;
@@ -40,6 +40,8 @@ public class RatingSeekBar extends SeekBar {
     private int padding;
     private int widthMinusPadding;
     private int count;
+
+    private int max;
 
     @ColorInt
     private int activeColor;
@@ -69,6 +71,7 @@ public class RatingSeekBar extends SeekBar {
                 0);
 
         try {
+            max = a.getInteger(R.styleable.rsb_RatingSeekBar_rsb_max, 100);
             activeColor =
                     a.getColor(R.styleable.rsb_RatingSeekBar_rsb_active_color, Color.RED);
             activeTextColor =
@@ -96,7 +99,9 @@ public class RatingSeekBar extends SeekBar {
 
         path = new Path();
 
-        targetProgressFraction = (float) getProgress() / getMax();
+        setMax(max);
+
+        targetProgressFraction = 0f;
         progressAnimator = ObjectAnimator.ofFloat(this, "progressFraction", 0f, 0f);
         progressAnimator.setInterpolator(new DecelerateInterpolator());
         progressAnimator.setDuration(100);
@@ -104,8 +109,22 @@ public class RatingSeekBar extends SeekBar {
         active = false;
     }
 
+    public interface OnRatingSeekBarChangeListener {
+        void onProgressChanged(RatingSeekBar ratingSeekBar, int progress);
+    }
+
+    OnRatingSeekBarChangeListener listener;
+
+    public void setOnSeekBarChangeListener(OnRatingSeekBarChangeListener listener) {
+        this.listener = listener;
+    }
+
+    private int getProgress() {
+        return Math.max(0, Math.min((int) (targetProgressFraction * count), max));
+    }
+
     public void setProgress(int progress) {
-        setTargetFraction((float) progress / getMax(), false);
+        setTargetFraction((progress + 0.5f) / count, false);
     }
 
     @SuppressWarnings("unused")
@@ -115,12 +134,8 @@ public class RatingSeekBar extends SeekBar {
 
     @SuppressWarnings("unused")
     public void setProgressFraction(float progressFraction) {
-        this.progressFraction = Math.max(0, Math.min(progressFraction, 1.f - 1.f / count));
+        this.progressFraction = Math.max(0, Math.min(progressFraction, 1.f));
         invalidate();
-    }
-
-    public void setActive(boolean active) {
-        this.active = active;
     }
 
     @Override
@@ -149,53 +164,53 @@ public class RatingSeekBar extends SeekBar {
         radius = height / 2;
         padding = (int) ((float) (count * height - width) / (2 * (count - 1)));
         widthMinusPadding = width - 2 * padding;
-        setPadding(padding, 0, padding, 0);
     }
 
     private void setTargetFraction(float newTargetProgressFraction, boolean animate) {
-        active = true;
-        if (newTargetProgressFraction != targetProgressFraction) {
+        newTargetProgressFraction = Math.max(0, Math.min(newTargetProgressFraction, 1.f));
+        if (!active || newTargetProgressFraction != targetProgressFraction) {
+            int prevProgress = getProgress();
             targetProgressFraction = newTargetProgressFraction;
+            int newProgress = getProgress();
             if (animate) {
                 progressAnimator.setFloatValues(progressFraction, targetProgressFraction);
                 progressAnimator.start();
             } else {
                 setProgressFraction(targetProgressFraction);
             }
+
+            if (null != listener && (!active || newProgress != prevProgress)) {
+                listener.onProgressChanged(this, newProgress);
+            }
         }
+        active = true;
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         switch (event.getActionMasked()) {
             case ACTION_DOWN:
-                setTargetFraction(
-                        (event.getX() - padding - widthMinusPadding / (count * 2))
-                                / widthMinusPadding, true);
-                break;
+                setTargetFraction((event.getX() - padding) / widthMinusPadding, true);
+                return true;
             case ACTION_MOVE:
-                setTargetFraction(
-                        (event.getX() - padding - widthMinusPadding / (count * 2))
-                                / widthMinusPadding, false);
-                break;
+                setTargetFraction((event.getX() - padding) / widthMinusPadding, false);
+                return true;
             case ACTION_UP:
             case ACTION_CANCEL:
-                setTargetFraction((float) getProgress() / getMax(), true);
-                break;
+                setTargetFraction((getProgress() + 0.5f) / count, true);
+                return true;
         }
 
-        return super.onTouchEvent(event);
+        return false;
     }
 
-    @Override
-    public synchronized void setMax(int max) {
-        super.setMax(max);
+    public int getMax() {
+        return max;
+    }
+
+    public void setMax(int max) {
+        this.max = max;
         count = max + 1;
-    }
-
-    @Override
-    public synchronized int getMax() {
-        return super.getMax() + 1;
     }
 
     @Override
@@ -214,7 +229,8 @@ public class RatingSeekBar extends SeekBar {
 
         // paint active track
 
-        float progressX = Math.min(radius + progressFraction * widthMinusPadding, width - radius);
+        float progressX = Math.max(radius,
+                Math.min(padding + progressFraction * widthMinusPadding, width - radius));
         if (active) {
             path.rewind();
             path.addCircle(radius, radius, radius, Path.Direction.CCW);
