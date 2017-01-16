@@ -8,7 +8,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Rect;
-import android.graphics.RectF;
 import android.graphics.Region;
 import android.graphics.Typeface;
 import android.os.Build;
@@ -39,9 +38,8 @@ public class RatingSeekBar extends SeekBar {
     private int height;
     private int radius;
     private int padding;
+    private int widthMinusPadding;
     private int count;
-    private float[] radii = new float[8];
-    private RectF rect = new RectF();
 
     @ColorInt
     private int activeColor;
@@ -117,7 +115,7 @@ public class RatingSeekBar extends SeekBar {
 
     @SuppressWarnings("unused")
     public void setProgressFraction(float progressFraction) {
-        this.progressFraction = progressFraction;
+        this.progressFraction = Math.max(0, Math.min(progressFraction, 1.f - 1.f / count));
         invalidate();
     }
 
@@ -144,14 +142,14 @@ public class RatingSeekBar extends SeekBar {
     }
 
     @Override
-    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-        super.onLayout(changed, left, top, right, bottom);
-        width = right - left;
-        height = bottom - top;
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        width = w;
+        height = h;
         radius = height / 2;
-        padding = radius / 2;
+        padding = (int) ((float) (count * height - width) / (2 * (count - 1)));
+        widthMinusPadding = width - 2 * padding;
         setPadding(padding, 0, padding, 0);
-        radii[0] = radii[1] = radii[6] = radii[7] = radius;
     }
 
     private void setTargetFraction(float newTargetProgressFraction, boolean animate) {
@@ -171,10 +169,14 @@ public class RatingSeekBar extends SeekBar {
     public boolean onTouchEvent(MotionEvent event) {
         switch (event.getActionMasked()) {
             case ACTION_DOWN:
-                setTargetFraction((event.getX() - padding) / (width - 2 * padding), true);
+                setTargetFraction(
+                        (event.getX() - padding - widthMinusPadding / (count * 2))
+                                / widthMinusPadding, true);
                 break;
             case ACTION_MOVE:
-                setTargetFraction((event.getX() - padding) / (width - 2 * padding), false);
+                setTargetFraction(
+                        (event.getX() - padding - widthMinusPadding / (count * 2))
+                                / widthMinusPadding, false);
                 break;
             case ACTION_UP:
             case ACTION_CANCEL:
@@ -192,33 +194,33 @@ public class RatingSeekBar extends SeekBar {
     }
 
     @Override
+    public synchronized int getMax() {
+        return super.getMax() + 1;
+    }
+
+    @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
         // paint inactive track
 
+        path.rewind();
+        path.addCircle(radius, radius, radius, Path.Direction.CCW);
+        path.addRect(radius, 0, width - radius, height, Path.Direction.CCW);
+        path.addCircle(width - radius, radius, radius, Path.Direction.CCW);
+
         paint.setColor(inactiveColor);
-        rect.set(0, 0, width, height);
-        canvas.drawRoundRect(rect, radius, radius, paint);
+        canvas.drawPath(path, paint);
 
         // paint active track
 
-        float stepWidth = (float) (width - 2 * padding) / count;
-        float progressWidth = 0;
+        float progressX = radius + progressFraction * widthMinusPadding;
         if (active) {
-            float startOffset = padding + stepWidth - radius;
-
-            progressWidth = startOffset + progressFraction * (count - 1) * stepWidth;
-            if (progressFraction > (float) (count - 2) / (count - 1)) {
-                float fraction = (count - 1) * (progressFraction - (float) (count - 2) / (count - 1));
-                progressWidth += fraction * padding;
-            }
-            progressWidth = Math.max(radius, Math.min(progressWidth, width - radius));
-
             path.rewind();
-            rect.set(0, 0, progressWidth, height);
-            path.addRoundRect(rect, radii, Path.Direction.CCW);
-            path.addCircle(progressWidth, radius, radius, Path.Direction.CCW);
+            path.addCircle(radius, radius, radius, Path.Direction.CCW);
+            path.addRect(radius, 0, progressX, height, Path.Direction.CCW);
+            path.addCircle(progressX, radius, radius, Path.Direction.CCW);
+
             paint.setColor(activeColor);
             canvas.drawPath(path, paint);
         }
@@ -228,26 +230,31 @@ public class RatingSeekBar extends SeekBar {
         // https://developer.android.com/guide/topics/graphics/hardware-accel.html#unsupported
         textPaint.setColor(inactiveTextColor);
         canvas.save();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-            canvas.clipPath(path, Region.Op.DIFFERENCE);
-        } else {
-            canvas.clipRect(progressWidth + radius, 0, width, height, Region.Op.INTERSECT);
+        if (active) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                canvas.clipPath(path, Region.Op.DIFFERENCE);
+            } else {
+                canvas.clipRect(progressX + radius, 0, width, height, Region.Op.INTERSECT);
+            }
         }
-        drawLabels(canvas, count, stepWidth);
+        drawLabels(canvas, count);
         canvas.restore();
 
-        textPaint.setColor(activeTextColor);
-        canvas.save();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-            canvas.clipPath(path, Region.Op.INTERSECT);
-        } else {
-            canvas.clipRect(0, 0, progressWidth + radius, height, Region.Op.INTERSECT);
+        if (active) {
+            textPaint.setColor(activeTextColor);
+            canvas.save();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                canvas.clipPath(path, Region.Op.INTERSECT);
+            } else {
+                canvas.clipRect(0, 0, progressX + radius, height, Region.Op.INTERSECT);
+            }
+            drawLabels(canvas, count);
+            canvas.restore();
         }
-        drawLabels(canvas, count, stepWidth);
-        canvas.restore();
     }
 
-    private void drawLabels(Canvas canvas, int count, float stepWidth) {
+    private void drawLabels(Canvas canvas, int count) {
+        float stepWidth = widthMinusPadding / count;
         for (int i = 0; i < count; i++) {
             canvas.drawText(
                     Integer.toString(i),
