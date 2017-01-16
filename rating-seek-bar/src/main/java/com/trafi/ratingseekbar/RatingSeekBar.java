@@ -11,6 +11,8 @@ import android.graphics.Rect;
 import android.graphics.Region;
 import android.graphics.Typeface;
 import android.os.Build;
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.support.annotation.ColorInt;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
@@ -124,7 +126,7 @@ public class RatingSeekBar extends View {
     }
 
     public void setProgress(int progress) {
-        setTargetFraction((progress + 0.5f) / count, false);
+        setTargetProgressFraction((progress + 0.5f) / count, false);
     }
 
     @SuppressWarnings("unused")
@@ -136,6 +138,26 @@ public class RatingSeekBar extends View {
     public void setProgressFraction(float progressFraction) {
         this.progressFraction = Math.max(0, Math.min(progressFraction, 1.f));
         invalidate();
+    }
+
+    private void setTargetProgressFraction(float newTargetProgressFraction, boolean animate) {
+        newTargetProgressFraction = Math.max(0, Math.min(newTargetProgressFraction, 1.f));
+        if (!active || newTargetProgressFraction != targetProgressFraction) {
+            int prevProgress = getProgress();
+            targetProgressFraction = newTargetProgressFraction;
+            int newProgress = getProgress();
+            if (animate) {
+                progressAnimator.setFloatValues(progressFraction, targetProgressFraction);
+                progressAnimator.start();
+            } else {
+                setProgressFraction(targetProgressFraction);
+            }
+
+            if (null != listener && (!active || newProgress != prevProgress)) {
+                listener.onProgressChanged(this, newProgress);
+            }
+        }
+        active = true;
     }
 
     @Override
@@ -166,38 +188,18 @@ public class RatingSeekBar extends View {
         widthMinusPadding = width - 2 * padding;
     }
 
-    private void setTargetFraction(float newTargetProgressFraction, boolean animate) {
-        newTargetProgressFraction = Math.max(0, Math.min(newTargetProgressFraction, 1.f));
-        if (!active || newTargetProgressFraction != targetProgressFraction) {
-            int prevProgress = getProgress();
-            targetProgressFraction = newTargetProgressFraction;
-            int newProgress = getProgress();
-            if (animate) {
-                progressAnimator.setFloatValues(progressFraction, targetProgressFraction);
-                progressAnimator.start();
-            } else {
-                setProgressFraction(targetProgressFraction);
-            }
-
-            if (null != listener && (!active || newProgress != prevProgress)) {
-                listener.onProgressChanged(this, newProgress);
-            }
-        }
-        active = true;
-    }
-
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         switch (event.getActionMasked()) {
             case ACTION_DOWN:
-                setTargetFraction((event.getX() - padding) / widthMinusPadding, true);
+                setTargetProgressFraction((event.getX() - padding) / widthMinusPadding, true);
                 return true;
             case ACTION_MOVE:
-                setTargetFraction((event.getX() - padding) / widthMinusPadding, false);
+                setTargetProgressFraction((event.getX() - padding) / widthMinusPadding, false);
                 return true;
             case ACTION_UP:
             case ACTION_CANCEL:
-                setTargetFraction((getProgress() + 0.5f) / count, true);
+                setTargetProgressFraction((getProgress() + 0.5f) / count, true);
                 return true;
         }
 
@@ -279,4 +281,50 @@ public class RatingSeekBar extends View {
                     textPaint);
         }
     }
+
+    static class SavedState extends BaseSavedState {
+        float targetProgressFraction;
+
+        SavedState(Parcelable superState) {
+            super(superState);
+        }
+
+        private SavedState(Parcel in) {
+            super(in);
+            targetProgressFraction = in.readFloat();
+        }
+
+        @Override
+        public void writeToParcel(Parcel out, int flags) {
+            super.writeToParcel(out, flags);
+            out.writeFloat(targetProgressFraction);
+        }
+
+        public static final Parcelable.Creator<SavedState> CREATOR
+                = new Parcelable.Creator<SavedState>() {
+            public SavedState createFromParcel(Parcel in) {
+                return new SavedState(in);
+            }
+
+            public SavedState[] newArray(int size) {
+                return new SavedState[size];
+            }
+        };
+    }
+
+    @Override
+    protected Parcelable onSaveInstanceState() {
+        Parcelable superState = super.onSaveInstanceState();
+        SavedState ss = new SavedState(superState);
+        ss.targetProgressFraction = targetProgressFraction;
+        return ss;
+    }
+
+    @Override
+    protected void onRestoreInstanceState(Parcelable state) {
+        SavedState ss = (SavedState) state;
+        super.onRestoreInstanceState(ss.getSuperState());
+        setTargetProgressFraction(ss.targetProgressFraction, false);
+    }
+
 }
