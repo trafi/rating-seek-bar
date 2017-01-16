@@ -17,6 +17,6 @@
 #}
 
 -keepclassmembers class com.trafi.ratingseekbar.RatingSeekBar {
-   public float getProgressFraction();
-   public void setProgressFraction(**);
+   float getProgressFraction();
+   void setProgressFraction(**);
 }

@@ -130,12 +130,12 @@ public class RatingSeekBar extends View {
     }
 
     @SuppressWarnings("unused")
-    public float getProgressFraction() {
+    float getProgressFraction() {
         return progressFraction;
     }
 
     @SuppressWarnings("unused")
-    public void setProgressFraction(float progressFraction) {
+    void setProgressFraction(float progressFraction) {
         this.progressFraction = Math.max(0, Math.min(progressFraction, 1.f));
         invalidate();
     }
