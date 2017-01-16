@@ -11,12 +11,17 @@ import android.graphics.Rect;
 import android.graphics.Region;
 import android.graphics.Typeface;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.support.annotation.ColorInt;
+import android.support.v4.view.ViewCompat;
+import android.support.v4.view.accessibility.AccessibilityNodeInfoCompat;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.animation.DecelerateInterpolator;
 
 import static android.view.MotionEvent.ACTION_CANCEL;
@@ -109,6 +114,12 @@ public class RatingSeekBar extends View {
         progressAnimator.setDuration(100);
 
         active = false;
+
+        if (ViewCompat.getImportantForAccessibility(this)
+                == ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_AUTO) {
+            ViewCompat.setImportantForAccessibility(this,
+                    ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        }
     }
 
     public interface OnRatingSeekBarChangeListener {
@@ -125,8 +136,14 @@ public class RatingSeekBar extends View {
         return Math.max(0, Math.min((int) (targetProgressFraction * count), max));
     }
 
-    public void setProgress(int progress) {
-        setTargetProgressFraction((progress + 0.5f) / count, false);
+    public boolean setProgress(int progress) {
+        int prevProgress = getProgress();
+        if (progress != prevProgress) {
+            setTargetProgressFraction((progress + 0.5f) / count, false);
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @SuppressWarnings("unused")
@@ -327,4 +344,64 @@ public class RatingSeekBar extends View {
         setTargetProgressFraction(ss.targetProgressFraction, false);
     }
 
+    @Override
+    public CharSequence getAccessibilityClassName() {
+        return RatingSeekBar.class.getName();
+    }
+
+    @Override
+    public void onInitializeAccessibilityEvent(AccessibilityEvent event) {
+        super.onInitializeAccessibilityEvent(event);
+        event.setItemCount(max);
+        event.setCurrentItemIndex(getProgress());
+    }
+
+    @Override
+    public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
+        super.onInitializeAccessibilityNodeInfo(info);
+
+        if (isEnabled()) {
+            final int progress = getProgress();
+            if (progress > 0) {
+                //noinspection deprecation
+                info.addAction(AccessibilityNodeInfoCompat.ACTION_SCROLL_BACKWARD);
+            }
+            if (progress < getMax()) {
+                //noinspection deprecation
+                info.addAction(AccessibilityNodeInfoCompat.ACTION_SCROLL_FORWARD);
+            }
+        }
+    }
+
+    @Override
+    public boolean performAccessibilityAction(int action, Bundle arguments) {
+        if (super.performAccessibilityAction(action, arguments)) {
+            return true;
+        }
+
+        if (!isEnabled()) {
+            return false;
+        }
+
+        switch (action) {
+            case android.R.id.accessibilityActionSetProgress: {
+                if (arguments == null || !arguments.containsKey(
+                        AccessibilityNodeInfoCompat.ACTION_ARGUMENT_PROGRESS_VALUE)) {
+                    return false;
+                }
+                float value = arguments.getFloat(
+                        AccessibilityNodeInfoCompat.ACTION_ARGUMENT_PROGRESS_VALUE);
+                return setProgress((int) value);
+            }
+            case AccessibilityNodeInfo.ACTION_SCROLL_FORWARD:
+            case AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD: {
+                int increment = Math.max(1, Math.round((float) getMax() / 20));
+                if (action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) {
+                    increment = -increment;
+                }
+                return setProgress(getProgress() + increment);
+            }
+        }
+        return false;
+    }
 }
