@@ -214,7 +214,7 @@ public class RatingSeekBar extends SeekBar {
 
         // paint active track
 
-        float progressX = radius + progressFraction * widthMinusPadding;
+        float progressX = Math.min(radius + progressFraction * widthMinusPadding, width - radius);
         if (active) {
             path.rewind();
             path.addCircle(radius, radius, radius, Path.Direction.CCW);
